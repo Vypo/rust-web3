@@ -5,7 +5,7 @@ use ethabi;
 use crate::api::{Eth, Namespace};
 use crate::confirm;
 use crate::contract::tokens::{Detokenize, Tokenize};
-use crate::types::{Address, BlockId, Bytes, CallRequest, TransactionCondition, TransactionRequest, H256, U256};
+use crate::types::{TransactionParameters, Address, BlockId, Bytes, CallRequest, TransactionCondition, TransactionRequest, H256, U256, TRANSACTION_DEFAULT_GAS};
 use crate::Transport;
 use std::{collections::HashMap, hash::Hash, time};
 
@@ -103,6 +103,35 @@ impl<T: Transport> Contract<T> {
     /// Returns contract address
     pub fn address(&self) -> Address {
         self.address
+    }
+
+    /// Prepares a function call to be signed.
+    pub fn prepare_call<P>(&self, func: &str, params: P, options: Options) -> Result<TransactionParameters, ethabi::Error>
+    where
+        P: Tokenize,
+    {
+        self.abi
+            .function(func)
+            .and_then(|function| function.encode_input(&params.into_tokens()))
+            .map(move |data| {
+                let Options {
+                    gas,
+                    gas_price,
+                    value,
+                    nonce,
+                    ..
+                } = options;
+
+                TransactionParameters {
+                    to: Some(self.address),
+                    gas: gas.unwrap_or(TRANSACTION_DEFAULT_GAS),
+                    gas_price,
+                    value: value.unwrap_or_default(),
+                    nonce,
+                    data: Bytes(data),
+                    chain_id: None,
+                }
+            })
     }
 
     /// Execute a contract function

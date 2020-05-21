@@ -22,7 +22,7 @@ pub use self::parity_peers::{
     EthProtocolInfo, ParityPeerInfo, ParityPeerType, PeerNetworkInfo, PeerProtocolsInfo, PipProtocolInfo,
 };
 pub use self::recovery::{Recovery, RecoveryMessage};
-pub use self::signed::{SignedData, SignedTransaction, TransactionParameters};
+pub use self::signed::{SignedData, SignedTransaction, TransactionParameters, TRANSACTION_DEFAULT_GAS};
 pub use self::sync_state::{SyncInfo, SyncState};
 pub use self::trace_filtering::{
     Action, ActionType, Call, CallResult, CallType, Create, CreateResult, Res, Reward, RewardType, Suicide, Trace,

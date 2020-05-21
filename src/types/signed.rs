@@ -1,4 +1,4 @@
-use crate::types::{Address, Bytes, CallRequest, H256, U256};
+use crate::types::{Address, Bytes, CallRequest, H256, U256, TransactionRequest};
 use serde::{Deserialize, Serialize};
 
 /// Struct representing signed data returned from `Accounts::sign` method.
@@ -61,7 +61,7 @@ pub struct TransactionParameters {
 /// constants so we just build it from it's `u64` words. Note that there is a
 /// unit test to verify that it is constructed correctly and holds the expected
 /// value of 100_000.
-const TRANSACTION_DEFAULT_GAS: U256 = U256([100_000, 0, 0, 0]);
+pub const TRANSACTION_DEFAULT_GAS: U256 = U256([100_000, 0, 0, 0]);
 
 impl Default for TransactionParameters {
     fn default() -> Self {
@@ -72,6 +72,20 @@ impl Default for TransactionParameters {
             gas_price: None,
             value: U256::zero(),
             data: Bytes::default(),
+            chain_id: None,
+        }
+    }
+}
+
+impl From<TransactionRequest> for TransactionParameters {
+    fn from(req: TransactionRequest) -> Self {
+        Self {
+            nonce: req.nonce,
+            to: req.to,
+            gas: req.gas.unwrap_or(TRANSACTION_DEFAULT_GAS),
+            gas_price: req.gas_price,
+            value: req.value.unwrap_or_default(),
+            data: req.data.unwrap_or_default(),
             chain_id: None,
         }
     }

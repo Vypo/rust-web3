@@ -4,12 +4,13 @@ use ethabi;
 use futures::{Async, Future, Poll};
 use rustc_hex::{FromHex, ToHex};
 use std::{collections::HashMap, time};
+pub use secp256k1::SecretKey;
 
 use crate::api::{Eth, Namespace};
 use crate::confirm;
 use crate::contract::tokens::Tokenize;
 use crate::contract::{Contract, Options};
-use crate::types::{Address, Bytes, TransactionReceipt, TransactionRequest};
+use crate::types::{Address, Bytes, TransactionReceipt, CallRequest, TransactionRequest};
 use crate::Transport;
 
 pub use crate::contract::error::deploy::Error;
@@ -93,6 +94,64 @@ impl<T: Transport> Builder<T> {
         })
     }
 
+    /// Execute deployment passing code and contructor parameters.
+    ///
+    /// Unlike the above `execute`, this method uses
+    /// `sign_raw_transaction_with_confirmation` instead of
+    /// `sign_transaction_with_confirmation`, which requires the account from
+    /// which the transaction is sent to be unlocked.
+    pub fn prepare_and_execute<P, V>(
+        self,
+        code: V,
+        params: P,
+        from: Address,
+        secret_key: SecretKey,
+    ) -> Result<PendingContract<T, impl Future<Item = TransactionReceipt, Error = crate::error::Error>>, ethabi::Error>
+    where
+        P: Tokenize,
+        V: AsRef<str>,
+    {
+        let transport = self.eth.transport().clone();
+        let poll_interval = self.poll_interval;
+        let confirmations = self.confirmations;
+
+        let eth = self.eth.clone();
+        self.do_execute(code, params, from, move |tx| {
+            futures::future::ok(tx)
+                .and_then(move |mut tx| if tx.gas.is_none() {
+                    let call = CallRequest {
+                        value: tx.value,
+                        gas: None,
+                        gas_price: tx.gas_price,
+                        from: Some(tx.from),
+                        to: tx.to,
+                        data: tx.data.clone(),
+                    };
+
+                    let fut = eth.estimate_gas(call, None)
+                        .map(move |gas| {
+                            tx.gas = Some(gas + 32_000);
+                            tx
+                        });
+
+                    futures::future::Either::A(fut)
+                } else {
+                    futures::future::Either::B(futures::future::ok(tx))
+                })
+            .and_then(move |tx| {
+                crate::api::Accounts::new(transport.clone())
+                    .sign_transaction(tx.into(), &secret_key)
+                    .and_then(move |signed_tx| {
+                        confirm::send_raw_transaction_with_confirmation(
+                            transport,
+                            signed_tx.raw_transaction,
+                            poll_interval,
+                            confirmations,
+                        )
+                    })
+                })
+        })
+    }
     fn do_execute<P, V, Ft>(
         self,
         code: V,
