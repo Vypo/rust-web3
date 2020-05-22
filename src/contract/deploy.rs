@@ -130,7 +130,8 @@ impl<T: Transport> Builder<T> {
 
                     let fut = eth.estimate_gas(call, None)
                         .map(move |gas| {
-                            tx.gas = Some(gas + 32_000);
+                            let deploy_gas = gas + 32_000;
+                            tx.gas = Some(deploy_gas + (deploy_gas / 2));
                             tx
                         });
 
